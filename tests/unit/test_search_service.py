@@ -121,3 +121,97 @@ def test_search_special_characters_dots_and_subdomain() -> None:
     for customer in results:
         assert ".com" in customer.email
 
+
+def test_search_accented_query_matches_unaccented_records() -> None:
+    """CR-01: Accented query matches unaccented customer records."""
+    service = CustomerSearchService()
+
+    # Query 'maría' matches 'Maria Garcia'
+    results_maria = service.search("maría")
+    result_names = [c.name for c in results_maria]
+    assert "Maria Garcia" in result_names
+
+    # Query 'lópez' matches 'Omar Lopez'
+    results_lopez = service.search("lópez")
+    assert "Omar Lopez" in [c.name for c in results_lopez]
+
+
+def test_search_unaccented_query_matches_accented_records() -> None:
+    """CR-01: Unaccented query matches customer records stored with accents."""
+    custom_records = [
+        Customer(id="201", name="Sofía López", email="sofia.lopez@example.com"),
+        Customer(id="202", name="Andrés Gómez", email="andres.gomez@example.com"),
+    ]
+    repo = InMemoryCustomerRepository(customers=custom_records)
+    service = CustomerSearchService(repository=repo)
+
+    results = service.search("sofia")
+    assert len(results) == 1
+    assert results[0].name == "Sofía López"
+    # Ensure underlying stored record is not modified
+    assert results[0].name == "Sofía López"
+
+    results_lopez = service.search("lopez")
+    assert len(results_lopez) == 1
+    assert results_lopez[0].name == "Sofía López"
+
+    results_gomez = service.search("gomez")
+    assert len(results_gomez) == 1
+    assert results_gomez[0].name == "Andrés Gómez"
+
+
+def test_search_combined_mixed_case_and_accent_insensitivity() -> None:
+    """CR-01: Combined mixed case and accent insensitivity."""
+    custom_records = [
+        Customer(id="301", name="Maria Garcia", email="maria.garcia@example.com"),
+        Customer(id="302", name="Sofía López", email="sofia.lopez@example.com"),
+    ]
+    repo = InMemoryCustomerRepository(customers=custom_records)
+    service = CustomerSearchService(repository=repo)
+
+    # Mixed case and accent on unaccented stored record
+    results_maria = service.search("mArÍa")
+    assert len(results_maria) == 1
+    assert results_maria[0].name == "Maria Garcia"
+
+    # Mixed case and unaccented query on accented stored record
+    results_sofia = service.search("sOfIa")
+    assert len(results_sofia) == 1
+    assert results_sofia[0].name == "Sofía López"
+
+    # Mixed case and accent on accented stored record
+    results_sofia_accent = service.search("sOfÍa")
+    assert len(results_sofia_accent) == 1
+    assert results_sofia_accent[0].name == "Sofía López"
+
+
+def test_search_accented_query_matches_accented_records() -> None:
+    """CR-01: Accented query matches accented stored customer records."""
+    custom_records = [
+        Customer(id="401", name="Sofía López", email="sofia.lopez@example.com"),
+    ]
+    repo = InMemoryCustomerRepository(customers=custom_records)
+    service = CustomerSearchService(repository=repo)
+
+    results = service.search("sofía")
+    assert len(results) == 1
+    assert results[0].name == "Sofía López"
+
+
+def test_search_accented_email_matching() -> None:
+    """CR-01: Accent normalization applies to email matching as well."""
+    custom_records = [
+        Customer(id="501", name="Jose Perez", email="josé.pérez@empresa.es"),
+    ]
+    repo = InMemoryCustomerRepository(customers=custom_records)
+    service = CustomerSearchService(repository=repo)
+
+    # Search with unaccented term matches accented email
+    results_unaccented = service.search("jose.perez")
+    assert len(results_unaccented) == 1
+    assert results_unaccented[0].email == "josé.pérez@empresa.es"
+
+    # Search with accented term matches accented email
+    results_accented = service.search("josé.pérez")
+    assert len(results_accented) == 1
+    assert results_accented[0].email == "josé.pérez@empresa.es"

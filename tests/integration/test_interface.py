@@ -93,3 +93,42 @@ def test_cli_subprocess_end_to_end_validation_failure() -> None:
 
     assert result.returncode == 1
     assert "Error: Query must be at least 2 characters long" in result.stderr
+
+
+def test_cli_search_accented_query_success() -> None:
+    """CR-01: CLI query execution with accented terms returns matching records and exits with code 0."""
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    exit_code = run_search("maría", stdout=stdout, stderr=stderr)
+
+    assert exit_code == 0
+    assert stderr.getvalue() == ""
+    output = stdout.getvalue()
+    assert "Found 1 matching customer(s):" in output
+    assert "Maria Garcia" in output
+
+
+def test_cli_search_mixed_case_accented_query_success() -> None:
+    """CR-01: CLI search with mixed case and accents matches records properly."""
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    exit_code = run_search("mArÍa", stdout=stdout, stderr=stderr)
+
+    assert exit_code == 0
+    assert stderr.getvalue() == ""
+    output = stdout.getvalue()
+    assert "Found 1 matching customer(s):" in output
+    assert "Maria Garcia" in output
+
+
+def test_cli_subprocess_end_to_end_accented_query() -> None:
+    """CR-01: Execute CLI subprocess with accented terms returns matching records and exits with code 0."""
+    cmd = [sys.executable, "-m", "src.entrypoints.cli", "--query", "maría"]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0
+    assert "Found 1 matching customer(s):" in result.stdout
+    assert "Maria Garcia" in result.stdout
+    assert result.stderr == ""
